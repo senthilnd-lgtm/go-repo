@@ -12,7 +12,7 @@ func DbConn() *gorm.DB {
 	fmt.Println("Called")
 
 	// running as docker container
-	dsn := "root:my-secret-pw@tcp(127.0.0.1:3306)/my_database?charset=utf8mb4&parseTime=True&loc=Local"
+	dsn := "root:my-secret-pw@tcp(192.168.29.167:3306)/my_database?charset=utf8mb4&parseTime=True&loc=Local"
 
 	fmt.Println("DB starting on port 3306...")
 
