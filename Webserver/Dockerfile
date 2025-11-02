@@ -1,5 +1,7 @@
 # Start from the official Go image
-FROM golang:1.25
+FROM golang:1.25 AS builder
+
+#RUN adduser -D builduser
 
 WORKDIR /app
 COPY . .
@@ -8,6 +10,14 @@ COPY . .
 RUN go build -o webapi .
 
 
-# Run the binary
+# FROM scratch
+
+# WORKDIR /app
+
+# COPY --from=builder /app/webapi .
+
+# USER 1000
+
 EXPOSE 8080
-CMD ["./webapi"]
+
+ENTRYPOINT ["./webapi"]
