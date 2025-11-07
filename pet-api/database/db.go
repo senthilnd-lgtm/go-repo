@@ -7,6 +7,8 @@ import (
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+
+	"gorm.io/plugin/prometheus"
 )
 
 var DB *gorm.DB
@@ -24,6 +26,17 @@ func InitMySQL() {
 		log.Fatal("Failed to get sql.DB")
 		return
 	}
+
+	// Add Prometheus plugin
+	db.Use(prometheus.New(prometheus.Config{
+		DBName:          "pets",
+		RefreshInterval: 15,
+		StartServer:     true,
+		HTTPServerPort:  9000, // exposes DB metrics at :9000/metrics
+		MetricsCollector: []prometheus.MetricsCollector{
+			&prometheus.MySQL{VariableNames: []string{"Threads_running"}},
+		},
+	}))
 
 	db.AutoMigrate(&models.Pet{})
 
