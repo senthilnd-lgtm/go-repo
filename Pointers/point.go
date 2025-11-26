@@ -1,6 +1,18 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
+
+func isupper(x *string) bool {
+	fmt.Println(" Address of x", x)
+	fmt.Println("Value of x", *x)
+	if strings.ToUpper(*x) == *x {
+		return true
+	}
+	return false
+}
 
 func main() {
 	// Declare a variable
@@ -9,9 +21,10 @@ func main() {
 	// Declare a pointer to x
 	var p *int = &x
 
+	var c = &x
 	// Print the value and the pointer
 	fmt.Println("Value of x:", x)
-	fmt.Println("Address of x:", p)
+	fmt.Println("Address of x:", p, c)
 	fmt.Println("Value pointed by p:", *p)
 
 	// Change value using pointer
@@ -24,4 +37,10 @@ func main() {
 	tt := usenew
 	*tt = 77
 	fmt.Println("Value of usenew:", usenew, *usenew)
+
+	msg := "HELLO"
+	var px *string = &msg
+
+	fmt.Println(isupper(px))
+
 }
