@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-movieapp
+  labels:
+    app: movieapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels: 
+      app: movieapp
+  template:
+    metadata:
+      labels:
+        app: movieapp
+    spec:
+      containers:
+      - name: movieapp
+        image: senthilnd/go-movieapp:latest
+        ports: 
+        - containerPort: 8080
+        env:
+        - name: USER_NAME
+          valueFrom:
+            secretKeyRef:
+              name: mongo-secret
+              key: mongo-user
+        - name: USER_PWD
+          valueFrom:
+            secretKeyRef:
+              name: mongo-secret
+              key: mongo-password
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: movieapp-service
+spec:
+  type: NodePort
+  selector:
+    app: movieapp
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+      nodePort: 30100
