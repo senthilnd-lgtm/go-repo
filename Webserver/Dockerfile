@@ -10,14 +10,14 @@ COPY . .
 RUN go build -o webapi .
 
 
-# FROM scratch
+ FROM alpine:3.19
 
-# WORKDIR /app
+ WORKDIR /app
 
-# COPY --from=builder /app/webapi .
+ COPY --from=builder /app/webapi .
 
 # USER 1000
 
 EXPOSE 8080
 
-ENTRYPOINT ["./webapi"]
+ENTRYPOINT ["/app/webapi"]

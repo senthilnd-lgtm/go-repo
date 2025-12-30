@@ -12,7 +12,7 @@ func doSomething() error {
 }
 
 func main() {
-	f, errr := os.Open("C:\\Senthil\\GoLang\\WS\\HelloWorld.go")
+	f, errr := os.Open("C:\\Senthil\\GoLang\\LearnGo\\HelloWorld.go")
 	if errr != nil {
 
 		if errors.Is(errr, os.ErrNotExist) {

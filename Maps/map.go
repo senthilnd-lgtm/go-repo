@@ -3,12 +3,16 @@ package main
 import "fmt"
 
 func main() {
+
+	mm := map[int]string{10: "sen", 20: "kum"}
+	fmt.Println(mm, len(mm))
 	// Create a map with string keys and int values
 	myMap := make(map[string]int)
 
 	// Add key-value pairs to the map
 	myMap["apple"] = 5
 	myMap["banana"] = 3
+	myMap["banana"] = 5
 
 	// Access a value by key
 	fmt.Println("apple:", myMap["apple"])

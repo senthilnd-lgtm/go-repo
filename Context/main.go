@@ -56,6 +56,6 @@ func fetchUserData(ctxp context.Context) (int, error) {
 }
 
 func fetch3rdParty() (int, error) {
-	time.Sleep(time.Millisecond * 150)
+	time.Sleep(time.Millisecond * 250)
 	return 666, nil
 }
