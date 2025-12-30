@@ -38,11 +38,10 @@ kind: Service
 metadata:
   name: movieapp-service
 spec:
-  type: NodePort
+  type: LoadBalancer
   selector:
     app: movieapp
-  ports:
-    - protocol: TCP
-      port: 8080
+  ports:    
+    - port: 80
       targetPort: 8080
-      nodePort: 30100
+      
