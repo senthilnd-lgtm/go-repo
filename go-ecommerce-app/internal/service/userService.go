@@ -15,6 +15,7 @@ import (
 
 type UserService struct {
 	Repo   repository.UserRepository
+	CRepo  repository.CatelogRepository
 	Auth   helper.Auth
 	Config config.AppConfig
 }
@@ -144,18 +145,81 @@ func (s UserService) VerifyCode(id uint, code int) error {
 	return nil
 }
 
-func (s UserService) CreateProfile(id int, input any) error {
+func (s UserService) CreateProfile(id uint, input dto.ProfileInput) error {
 
+	// update user
+	var user domain.User
+
+	if input.FirstName != "" {
+		user.FirstName = input.FirstName
+	}
+	if input.LastName != "" {
+		user.LastName = input.LastName
+	}
+	_, err := s.Repo.UpdateUser(id, user)
+
+	if err != nil {
+		return errors.New("Unable to update user")
+	}
+
+	// create address
+
+	address := domain.Address{
+		AddressLine1: input.AddressInput.AddressLine1,
+		AddressLine2: input.AddressInput.AddressLine2,
+		City:         input.AddressInput.City,
+		Country:      input.AddressInput.Country,
+		PostCode:     input.AddressInput.PostCode,
+		UserId:       int(id),
+	}
+	err = s.Repo.CreateProfile(address)
+
+	if err != nil {
+		return errors.New("Unable to create profile")
+	}
 	return nil
 }
 
-func (s UserService) GetProfile(id int) (*domain.User, error) {
-
-	return nil, nil
+func (s UserService) GetProfile(id uint) (*domain.User, error) {
+	user, err := s.Repo.FindUserById(id)
+	if err != nil {
+		return nil, errors.New("Unable to get profile")
+	}
+	return &user, nil
 }
 
-func (s UserService) UpdateProfile(id uint, input any) error {
+func (s UserService) UpdateProfile(id uint, input dto.ProfileInput) error {
 
+	user, err := s.Repo.FindUserById(id)
+
+	if err != nil {
+		return err
+	}
+
+	if input.FirstName != "" {
+		user.FirstName = input.FirstName
+	}
+	if input.LastName != "" {
+		user.LastName = input.LastName
+	}
+	_, err = s.Repo.UpdateUser(id, user)
+
+	if err != nil {
+		return errors.New("Unable to update user")
+	}
+	address := domain.Address{
+		AddressLine1: input.AddressInput.AddressLine1,
+		AddressLine2: input.AddressInput.AddressLine2,
+		City:         input.AddressInput.City,
+		Country:      input.AddressInput.Country,
+		PostCode:     input.AddressInput.PostCode,
+		UserId:       int(id),
+	}
+	err = s.Repo.UpdateProfile(address)
+
+	if err != nil {
+		return errors.New("Unable to update profile")
+	}
 	return nil
 }
 
@@ -200,27 +264,143 @@ func (s UserService) BecomeSeller(id uint, input dto.SellerInput) (string, error
 	return token, err
 }
 
-func (s UserService) FindCart(id uint) ([]interface{}, error) {
+func (s UserService) FindCart(id uint) ([]domain.Cart, error) {
 
-	return nil, nil
+	carts, err := s.Repo.FindCartItems(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return carts, nil
 }
 
-func (s UserService) CreateCart(input any, u domain.User) ([]interface{}, error) {
+func (s UserService) CreateCart(input dto.CreateCartRequest, u domain.User) ([]domain.Cart, error) {
 
-	return nil, nil
+	// check if cart is exist
+
+	cart, _ := s.Repo.FindCartItem(u.ID, input.ProductId)
+
+	if cart.ID > 0 {
+		if input.ProductId == 0 {
+			return nil, errors.New("please provide valie product id")
+		}
+		// delete the cart items
+		if input.Qty < 1 {
+			err := s.Repo.DeleteCartById(cart.ID)
+			if err != nil {
+				return nil, errors.New("error on delete cart items")
+			}
+		} else {
+			// update the cart items
+
+			cart.Qty = input.Qty
+			err := s.Repo.UpdateCart(cart)
+			if err != nil {
+				return nil, errors.New("error on update cart item")
+			}
+
+		}
+	} else {
+
+		// check if product exist
+		product, err := s.CRepo.FindProductById(int(input.ProductId))
+
+		if product.ID < 1 {
+			return nil, errors.New("Product not found")
+		}
+		// create cart
+
+		err = s.Repo.CreateCart(domain.Cart{
+			ProductId: input.ProductId,
+			UserId:    int(u.ID),
+			Name:      product.Name,
+			ImageUrl:  product.ImageUrl,
+			Qty:       input.Qty,
+			Price:     product.Price,
+			SellerId:  uint(product.UserId),
+		})
+		if err != nil {
+			return nil, errors.New("Error creating cart item")
+		}
+
+	}
+	return s.Repo.FindCartItems(u.ID)
+
 }
 
 func (s UserService) CreateOrder(u domain.User) (int, error) {
 
-	return 0, nil
+	// find card items
+	cartItems, err := s.Repo.FindCartItems(u.ID)
+
+	if err != nil {
+		return 0, errors.New("error on finding cart item")
+	}
+
+	if len(cartItems) == 0 {
+		return 0, errors.New("cart is empty cannot create order")
+
+	}
+	//  find success payment
+	paymentId := "PAY12345"
+	txnId := "TXN12345"
+	orderRef, _ := helper.RandomNumbers(8)
+
+	// create order with created order ref
+	var amount float64
+	var orderItems []domain.OrderItem
+
+	for _, item := range cartItems {
+		amount += item.Price * float64(item.Qty)
+		orderItems = append(orderItems, domain.OrderItem{
+			ProductId: item.ProductId,
+			Qty:       item.Qty,
+			Price:     item.Price,
+			Name:      item.Name,
+			ImageUrl:  item.ImageUrl,
+			SellerId:  item.SellerId,
+		})
+	}
+
+	order := domain.Order{
+		UserId:         u.ID,
+		PaymentId:      paymentId,
+		TransactionId:  txnId,
+		OrderRefNumber: uint(orderRef),
+		Amount:         amount,
+		Item:           orderItems,
+	}
+
+	err = s.Repo.CreateOrder(order)
+	if err != nil {
+		return 0, err
+	}
+
+	// send email with order details
+
+	// Remove cart items
+
+	err = s.Repo.DeleteCartItems(u.ID)
+	log.Printf("error on delete cart items %v", err)
+
+	// return order number
+	return orderRef, nil
 }
 
-func (s UserService) GetOrders(u domain.User) ([]interface{}, error) {
+func (s UserService) GetOrders(u domain.User) ([]domain.Order, error) {
+	orders, err := s.Repo.FindOrders(u.ID)
+	if err != nil {
+		return nil, err
+	}
 
-	return nil, nil
+	return orders, nil
 }
 
-func (s UserService) GetOrderById(id uint, uId uint) ([]interface{}, error) {
+func (s UserService) GetOrderById(id uint, uId uint) (domain.Order, error) {
+	order, err := s.Repo.FindOrderById(id, uId)
+	if err != nil {
+		return domain.Order{}, err
+	}
 
-	return nil, nil
+	return order, nil
 }

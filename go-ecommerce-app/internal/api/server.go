@@ -6,9 +6,12 @@ import (
 	"go-ecommerce-app/internal/api/rest/handlers"
 	"go-ecommerce-app/internal/domain"
 	"go-ecommerce-app/internal/helper"
+	"go-ecommerce-app/pkg/payment"
 	"log"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -24,17 +27,40 @@ func StartServer(config config.AppConfig) {
 	}
 
 	log.Println("database connected")
-	err = db.AutoMigrate(&domain.User{}, domain.BankAccount{}, domain.Category{}, domain.Product{})
+	err = db.AutoMigrate(
+		&domain.User{},
+		&domain.Address{},
+		&domain.BankAccount{},
+		&domain.Category{},
+		&domain.Product{},
+		&domain.Cart{},
+		&domain.Order{},
+		&domain.OrderItem{},
+		&domain.Payment{},
+	)
 	if err != nil {
 		log.Fatalf("error on running migration %v", err.Error())
 	}
 
+	// setting up cars
+
+	c := cors.New(cors.Config{
+		AllowOrigins: "http://localhost:3000",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+		AllowMethods: "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+	})
+	app.Use(c)
+
 	auth := helper.SetupAuth(config.AppSecret)
+
+	paymentClient := payment.NewPaymentClient(config.StriprSecret)
+
 	rh := &rest.RestHandler{
 		App:    app,
 		DB:     db,
 		Auth:   auth,
 		Config: config,
+		Pc:     paymentClient,
 	}
 	setupRoutes(rh)
 	app.Listen(config.ServerPort)
@@ -49,5 +75,7 @@ func setupRoutes(rh *rest.RestHandler) {
 	handlers.SetupCatelogRoutes(rh)
 
 	// transactions
+
+	handlers.SetupTransactionRoutes(rh)
 
 }

@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"errors"
 	"go-ecommerce-app/internal/api/rest"
 	"go-ecommerce-app/internal/dto"
 	"go-ecommerce-app/internal/repository"
 	"go-ecommerce-app/internal/service"
 	"net/http"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -20,6 +22,7 @@ func SetupUserRoutes(rh *rest.RestHandler) {
 	// create an instance of user service and pass to handler
 	svc := service.UserService{
 		Repo:   repository.NewUserRepository(rh.DB),
+		CRepo:  repository.NewCatelogRepository(rh.DB),
 		Auth:   rh.Auth,
 		Config: rh.Config,
 	}
@@ -38,12 +41,13 @@ func SetupUserRoutes(rh *rest.RestHandler) {
 	pvtRoutes.Post("/verify", handler.Verify)
 	pvtRoutes.Get("/profile", handler.GetProfile)
 	pvtRoutes.Post("/profile", handler.CreateProfile)
+	pvtRoutes.Patch("/profile", handler.UpdateProfile)
 
 	pvtRoutes.Get("/cart", handler.GetCart)
 	pvtRoutes.Post("/cart", handler.AddToCart)
+
 	pvtRoutes.Post("/order", handler.CreateOrder)
 	pvtRoutes.Get("/order", handler.GetOrders)
-
 	pvtRoutes.Get("/order/:id", handler.GetOrder)
 
 	pvtRoutes.Post("become-seller", handler.BecomeSeller)
@@ -146,52 +150,142 @@ func (h *UserHandler) GetVerificationCode(ctx *fiber.Ctx) error {
 
 func (h *UserHandler) CreateProfile(ctx *fiber.Ctx) error {
 
+	user := h.svc.Auth.GetCurrentUser(ctx)
+
+	req := dto.ProfileInput{}
+
+	err := ctx.BodyParser(&req)
+	if err != nil {
+		return rest.BadRequestError(ctx, "invalid profile input")
+	}
+
+	err = h.svc.CreateProfile(user.ID, req)
+
+	if err != nil {
+		return rest.InternalError(ctx, errors.New("Unable to create user profile"))
+	}
+
 	return ctx.Status(http.StatusOK).JSON(&fiber.Map{
 		"message": "createProfile",
+	})
+}
+
+func (h *UserHandler) UpdateProfile(ctx *fiber.Ctx) error {
+
+	user := h.svc.Auth.GetCurrentUser(ctx)
+
+	req := dto.ProfileInput{}
+
+	err := ctx.BodyParser(&req)
+	if err != nil {
+		return rest.BadRequestError(ctx, "invalid profile input")
+	}
+
+	err = h.svc.UpdateProfile(user.ID, req)
+	if err != nil {
+		return rest.InternalError(ctx, errors.New("Unable to update profile"))
+	}
+	return ctx.Status(http.StatusOK).JSON(&fiber.Map{
+		"message": "UpdateProfile",
 	})
 }
 
 func (h *UserHandler) GetProfile(ctx *fiber.Ctx) error {
 
 	user := h.svc.Auth.GetCurrentUser(ctx)
+
+	userProfile, err := h.svc.GetProfile(user.ID)
+
+	if err != nil {
+		return rest.InternalError(ctx, errors.New("Unable to get user profile"))
+	}
+
 	return ctx.Status(http.StatusOK).JSON(&fiber.Map{
-		"message": "Get Profile",
-		"user":    user,
+		"message":     "Get Profile",
+		"userProfile": userProfile,
 	})
 }
 
 func (h *UserHandler) AddToCart(ctx *fiber.Ctx) error {
 
-	return ctx.Status(http.StatusOK).JSON(&fiber.Map{
-		"message": "Add to cart",
-	})
+	req := dto.CreateCartRequest{}
+
+	if err := ctx.BodyParser(&req); err != nil {
+		return ctx.Status(http.StatusBadRequest).JSON(&fiber.Map{
+			"message": "Invalid input code",
+		})
+
+	}
+
+	user := h.svc.Auth.GetCurrentUser(ctx)
+	cartItems, err := h.svc.CreateCart(req, user)
+
+	if err != nil {
+		return rest.InternalError(ctx, err)
+	}
+
+	return rest.SuccessResponse(ctx, "cart created successfully", cartItems)
 }
 
 func (h *UserHandler) GetCart(ctx *fiber.Ctx) error {
 
+	user := h.svc.Auth.GetCurrentUser(ctx)
+
+	cart, err := h.svc.FindCart(user.ID)
+
+	if err != nil {
+		return rest.InternalError(ctx, errors.New("cart does not exist"))
+	}
+
 	return ctx.Status(http.StatusOK).JSON(&fiber.Map{
 		"message": "Get cart",
+		"cart":    cart,
 	})
 }
 
 func (h *UserHandler) GetOrder(ctx *fiber.Ctx) error {
 
+	orderId, _ := strconv.Atoi(ctx.Params("id"))
+	user := h.svc.Auth.GetCurrentUser(ctx)
+
+	order, err := h.svc.Repo.FindOrderById(uint(orderId), user.ID)
+	if err != nil {
+		return rest.InternalError(ctx, err)
+	}
 	return ctx.Status(http.StatusOK).JSON(&fiber.Map{
 		"message": "Get Order by id",
+		"order":   order,
 	})
 }
 
 func (h *UserHandler) GetOrders(ctx *fiber.Ctx) error {
 
+	user := h.svc.Auth.GetCurrentUser(ctx)
+
+	orders, err := h.svc.GetOrders(user)
+	if err != nil {
+		return rest.InternalError(ctx, errors.New("Error in getting the orders"))
+	}
+
 	return ctx.Status(http.StatusOK).JSON(&fiber.Map{
 		"message": "Get Orders",
+		"orders":  orders,
 	})
 }
 
 func (h *UserHandler) CreateOrder(ctx *fiber.Ctx) error {
 
+	user := h.svc.Auth.GetCurrentUser(ctx)
+
+	orderRef, err := h.svc.CreateOrder(user)
+
+	if err != nil {
+		return rest.InternalError(ctx, errors.New("unable to create order"))
+	}
+
 	return ctx.Status(http.StatusOK).JSON(&fiber.Map{
 		"message": "Create Order",
+		"order":   orderRef,
 	})
 }
 

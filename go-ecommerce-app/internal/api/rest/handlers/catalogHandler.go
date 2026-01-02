@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"fmt"
 	"go-ecommerce-app/internal/api/rest"
+	"go-ecommerce-app/internal/domain"
 	"go-ecommerce-app/internal/dto"
 	"go-ecommerce-app/internal/repository"
 	"go-ecommerce-app/internal/service"
@@ -30,21 +32,21 @@ func SetupCatelogRoutes(rh *rest.RestHandler) {
 	// listing product and categories
 	app.Get("/products", handler.GetProducts)
 	app.Get("/product/:id", handler.GetProduct)
-	app.Get("/catagories", handler.GetCategories)
-	app.Get("/catagories/:id", handler.GetCategoryById)
+	app.Get("/categories", handler.GetCategories)
+	app.Get("/categories/:id", handler.GetCategoryById)
 
 	// private
 	// manage product and categories
 	selRoutes := app.Group("/seller", rh.Auth.AuthorizeSeller)
 
 	//categories
-	selRoutes.Post("/catagories", handler.CreateCategories)
-	selRoutes.Patch("/catagories/:id", handler.EditCategories)
-	selRoutes.Delete("/catagories/:id", handler.DeleteCategories)
+	selRoutes.Post("/categories", handler.CreateCategories)
+	selRoutes.Patch("/categories/:id", handler.EditCategories)
+	selRoutes.Delete("/categories/:id", handler.DeleteCategories)
 
 	//products
 	selRoutes.Post("/products", handler.CreateProduct)
-	selRoutes.Get("/products", handler.GetProduct)
+	selRoutes.Get("/products", handler.GetProducts)
 	selRoutes.Get("/products/:id", handler.GetProduct)
 
 	selRoutes.Put("/products/:id", handler.EditProduct)
@@ -53,6 +55,8 @@ func SetupCatelogRoutes(rh *rest.RestHandler) {
 }
 
 func (h CatelogHandler) GetCategories(ctx *fiber.Ctx) error {
+
+	fmt.Println(" CATE : Request received")
 
 	categories, err := h.svc.GetCategories()
 
@@ -125,30 +129,91 @@ func (h CatelogHandler) DeleteCategories(ctx *fiber.Ctx) error {
 
 func (h CatelogHandler) CreateProduct(ctx *fiber.Ctx) error {
 
-	return rest.SuccessResponse(ctx, "creat product endpoint", nil)
+	req := dto.CreateProductRequest{}
+	err := ctx.BodyParser(&req)
+	if err != nil {
+		return rest.BadRequestError(ctx, "Invalid product request")
+	}
+
+	user := h.svc.Auth.GetCurrentUser(ctx)
+	err = h.svc.CreateProduct(req, user)
+	if err != nil {
+		return rest.InternalError(ctx, err)
+	}
+
+	return rest.SuccessResponse(ctx, "Product created successfully", nil)
 }
 
 func (h CatelogHandler) EditProduct(ctx *fiber.Ctx) error {
 
-	return rest.SuccessResponse(ctx, "Edit product endpoint", nil)
+	id, _ := strconv.Atoi(ctx.Params("id"))
+	req := dto.CreateProductRequest{}
+
+	err := ctx.BodyParser(&req)
+
+	if err != nil {
+		return rest.BadRequestError(ctx, "edit product request is not valid")
+	}
+	user := h.svc.Auth.GetCurrentUser(ctx)
+	product, err := h.svc.EditProduct(id, req, user)
+
+	if err != nil {
+		return rest.InternalError(ctx, err)
+	}
+	return rest.SuccessResponse(ctx, "Edit product ", product)
 }
 
 func (h CatelogHandler) DeleteProduct(ctx *fiber.Ctx) error {
+	id, _ := strconv.Atoi(ctx.Params("id"))
+	user := h.svc.Auth.GetCurrentUser(ctx)
 
-	return rest.SuccessResponse(ctx, "Delete product endpoint", nil)
+	err := h.svc.DeleteProduct(id, user)
+
+	return rest.SuccessResponse(ctx, "Delete product endpoint", err)
 }
 
 func (h CatelogHandler) GetProduct(ctx *fiber.Ctx) error {
 
-	return rest.SuccessResponse(ctx, "Get product endpoint", nil)
+	id, _ := strconv.Atoi(ctx.Params("id"))
+	fmt.Println("INput ", id)
+	product, err := h.svc.GetProductById(id)
+	if err != nil {
+		return rest.BadRequestError(ctx, "product not found")
+	}
+
+	return rest.SuccessResponse(ctx, "Get product endpoint", product)
 }
 
 func (h CatelogHandler) GetProducts(ctx *fiber.Ctx) error {
 
-	return rest.SuccessResponse(ctx, "Get product endpoint", nil)
+	products, err := h.svc.GetProducts()
+	if err != nil {
+		return rest.ErrorMessage(ctx, 404, err)
+	}
+
+	return rest.SuccessResponse(ctx, "List of products", products)
 }
 
 func (h CatelogHandler) UpdateStock(ctx *fiber.Ctx) error {
+	id, _ := strconv.Atoi(ctx.Params("id"))
 
-	return rest.SuccessResponse(ctx, "update stock endpoint", nil)
+	req := dto.UpdateStockRequest{}
+	err := ctx.BodyParser(&req)
+
+	if err != nil {
+		return rest.BadRequestError(ctx, "Invalid update stock input")
+	}
+	user := h.svc.Auth.GetCurrentUser(ctx)
+	product := domain.Product{
+		ID:     uint(id),
+		Stock:  uint(req.Stock),
+		UserId: int(user.ID),
+	}
+
+	updateProduct, err := h.svc.UpdateProductStock(product)
+	if err != nil {
+		return rest.ErrorMessage(ctx, 404, err)
+	}
+
+	return rest.SuccessResponse(ctx, "update stock endpoint", updateProduct)
 }
